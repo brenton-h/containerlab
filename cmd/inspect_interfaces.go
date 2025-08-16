@@ -20,6 +20,7 @@ import (
 var (
 	interfacesFormat   string
 	interfacesNodeName string
+	inspectAllFlag      bool
 )
 
 // inspectInterfacesCmd represents the inspect interfaces command.
@@ -37,14 +38,21 @@ func init() {
 
 	inspectInterfacesCmd.Flags().StringVarP(&interfacesFormat, "format", "f", "table", "output format. One of [table, json]")
 	inspectInterfacesCmd.Flags().StringVarP(&interfacesNodeName, "node", "n", "", "node to inspect")
+	inspectInterfacesCmd.Flags().BoolVar(&inspectAllFlag, "all", false, "inspect interfaces of all running nodes")
 }
 
 func inspectInterfacesFn(cobraCmd *cobra.Command, _ []string) error {
-	if labName == "" && topoFile == "" {
-		fmt.Println("provide either a lab name (--name) or a topology file path (--topo)")
+	if labName == "" && topoFile == "" && !all {
+		fmt.Println("provide either a lab name (--name) or a topology file path (--topo) or the --all flag")
 		return nil
 	}
 
+    if labName == !"" || topoFile == !"" && all {
+        fmt.Println("--all cannot be used with --node or --topo")
+        return nil
+    }
+   }
+	
 	if interfacesFormat != "table" && interfacesFormat != "json" {
 		return fmt.Errorf("output format %v is not supported, use 'table' or 'json'", interfacesFormat)
 	}
@@ -74,25 +82,24 @@ func inspectInterfacesFn(cobraCmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("could not parse the topology file: %v", err)
 	}
 
-	labNameFilterLabel := ""
-	if labName != "" {
-		labNameFilterLabel = labName
-	} else if c.Config.Name != "" {
-		labNameFilterLabel = c.Config.Name
-	} else {
-		return fmt.Errorf("could not find topology")
-	}
+    labNameFilterLabel := ""
+    if !inspectAllFlag {
+        if labName != "" {
+            labNameFilterLabel = labName
+        } else if c.Config.Name != "" {
+            labNameFilterLabel = c.Config.Name
+        } else {
+            return fmt.Errorf("could not find topology")
+        }
+    }
 
-	listOpts := []clabcore.ListOption{
-		clabcore.WithListLabName(labNameFilterLabel),
-	}
-
-	if interfacesNodeName != "" {
-		listOpts = append(
-			listOpts,
-			clabcore.WithListNodeName(interfacesNodeName),
-		)
-	}
+    listOpts := []clabcore.ListOption{}
+    if !inspectAllFlag {
+        listOpts = append(listOpts, clabcore.WithListLabName(labNameFilterLabel))
+        if interfacesNodeName != "" {
+            listOpts = append(listOpts, clabcore.WithListNodeName(interfacesNodeName))
+        }
+    }
 
 	containers, err := c.ListContainers(cobraCmd.Context(), listOpts...)
 	if err != nil {
